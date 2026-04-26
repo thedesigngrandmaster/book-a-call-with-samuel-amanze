@@ -180,7 +180,7 @@ export default function BookingPage() {
         <div className="panel grid gap-0 md:grid-cols-[1fr_1.4fr]">
           <aside className="border-b border-border p-6 md:border-b-0 md:border-r">
             <div className="mb-3 flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/20 text-xs font-bold text-accent">SA</span>
+              <img src="/me.jpg" alt="Samuel AMANZE" className="h-9 w-9 rounded-full object-cover ring-2 ring-accent/40" />
               <span className="text-sm text-muted-foreground">{HOST_NAME}</span>
             </div>
             <h1 className="text-2xl font-semibold">{HOST_TITLE}</h1>
@@ -257,7 +257,7 @@ export default function BookingPage() {
         {/* Left: host card */}
         <aside className="border-b border-border p-6 md:border-b-0 md:border-r">
           <div className="mb-3 flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/20 text-xs font-bold text-accent">SA</span>
+            <img src="/me.jpg" alt="Samuel AMANZE" className="h-9 w-9 rounded-full object-cover ring-2 ring-accent/40" />
             <span className="text-sm text-muted-foreground">{HOST_NAME}</span>
           </div>
           <h1 className="text-2xl font-semibold leading-tight">{HOST_TITLE}</h1>
@@ -299,14 +299,19 @@ export default function BookingPage() {
               <button
                 onClick={() => canGoPrev() && setViewMonth(addMonths(viewMonth, -1))}
                 disabled={!canGoPrev()}
-                className="rounded-md p-1.5 hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-30"
+                className={`rounded-md p-1.5 transition ${
+                  canGoPrev()
+                    ? "text-foreground hover:bg-secondary"
+                    : "cursor-not-allowed text-muted-foreground/30"
+                }`}
                 aria-label="Previous month"
+                title={canGoPrev() ? "Previous month" : "April 2026 is the earliest available month"}
               >
                 <ChevronLeftIcon className="h-4 w-4" />
               </button>
               <button
                 onClick={() => setViewMonth(addMonths(viewMonth, 1))}
-                className="rounded-md p-1.5 hover:bg-secondary"
+                className="rounded-md p-1.5 text-foreground hover:bg-secondary"
                 aria-label="Next month"
               >
                 <ChevronRightIcon className="h-4 w-4" />

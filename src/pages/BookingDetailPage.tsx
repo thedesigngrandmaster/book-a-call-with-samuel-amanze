@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Navigate, Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { format } from "date-fns";
+import { format, addMinutes } from "date-fns";
 import {
   ArrowLeftIcon,
   CalendarDaysIcon,
@@ -12,9 +12,12 @@ import {
   VideoCameraIcon,
   XCircleIcon,
   CheckCircleIcon,
+  ArrowPathIcon,
+  IdentificationIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 import SafeIcon from "@/components/SafeIcon";
+import VisitorDrawer from "@/components/VisitorDrawer";
 
 export default function BookingDetailPage() {
   const { id } = useParams();
@@ -22,6 +25,10 @@ export default function BookingDetailPage() {
   const navigate = useNavigate();
   const [booking, setBooking] = useState<any>(null);
   const [busy, setBusy] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [newDate, setNewDate] = useState("");
+  const [newTime, setNewTime] = useState("");
 
   useEffect(() => {
     if (!id || role !== "admin") return;
@@ -30,7 +37,14 @@ export default function BookingDetailPage() {
       .select("*")
       .eq("id", id)
       .maybeSingle()
-      .then(({ data }) => setBooking(data));
+      .then(({ data }) => {
+        setBooking(data);
+        if (data) {
+          const s = new Date(data.starts_at);
+          setNewDate(format(s, "yyyy-MM-dd"));
+          setNewTime(format(s, "HH:mm"));
+        }
+      });
 
     // Mark related notifications as read
     supabase
@@ -47,7 +61,7 @@ export default function BookingDetailPage() {
 
   async function cancel() {
     if (!booking) return;
-    if (!confirm("Cancel this meeting? The visitor will keep their record but it will be marked cancelled.")) return;
+    if (!confirm("Cancel this meeting? The visitor will be notified.")) return;
     setBusy(true);
     const { error } = await supabase
       .from("bookings")
@@ -57,6 +71,68 @@ export default function BookingDetailPage() {
     if (error) return toast.error(error.message);
     toast.success("Meeting cancelled");
     setBooking({ ...booking, status: "cancelled" });
+    supabase.functions.invoke("send-booking-emails", {
+      body: { bookingId: booking.id, kind: "cancelled" },
+    }).catch(() => {});
+  }
+
+  async function reschedule() {
+    if (!booking) return;
+    if (!newDate || !newTime) return toast.error("Pick a date and time");
+    const newStart = new Date(`${newDate}T${newTime}:00`);
+    if (isNaN(newStart.getTime())) return toast.error("Invalid date/time");
+    const newEnd = addMinutes(newStart, booking.duration_minutes);
+
+    setBusy(true);
+    try {
+      // Try to create a fresh Meet event for the new time
+      let meetLink: string | null = booking.meet_link;
+      try {
+        const { data: meet } = await supabase.functions.invoke("create-meet-event", {
+          body: {
+            bookingId: booking.id,
+            summary: `Quick chat with ${booking.visitor_name} (rescheduled)`,
+            description: booking.notes || "",
+            startsAt: newStart.toISOString(),
+            endsAt: newEnd.toISOString(),
+            visitorEmail: booking.visitor_email,
+            visitorName: booking.visitor_name,
+          },
+        });
+        if (meet?.meetLink) meetLink = meet.meetLink;
+      } catch (e) {
+        console.warn("Meet recreate failed, keeping existing link", e);
+      }
+
+      const { error } = await supabase
+        .from("bookings")
+        .update({
+          starts_at: newStart.toISOString(),
+          ends_at: newEnd.toISOString(),
+          meet_link: meetLink,
+          status: "confirmed",
+        })
+        .eq("id", booking.id);
+      if (error) throw error;
+
+      setBooking({
+        ...booking,
+        starts_at: newStart.toISOString(),
+        ends_at: newEnd.toISOString(),
+        meet_link: meetLink,
+        status: "confirmed",
+      });
+      setRescheduleOpen(false);
+      toast.success("Meeting rescheduled");
+
+      supabase.functions.invoke("send-booking-emails", {
+        body: { bookingId: booking.id, kind: "rescheduled" },
+      }).catch(() => {});
+    } catch (e: any) {
+      toast.error(e.message || "Could not reschedule");
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (!booking) {
@@ -107,7 +183,13 @@ export default function BookingDetailPage() {
             <span className="ml-2 text-xs text-muted-foreground">({booking.duration_minutes} min)</span>
           </Row>
           <Row icon={UserIcon} term="Visitor">
-            {booking.visitor_name}
+            <button
+              onClick={() => setDrawerOpen(true)}
+              className="inline-flex items-center gap-1 text-foreground hover:text-accent"
+            >
+              {booking.visitor_name}
+              <IdentificationIcon className="h-3.5 w-3.5 text-muted-foreground" />
+            </button>
           </Row>
           <Row icon={EnvelopeIcon} term="Email">
             <a href={`mailto:${booking.visitor_email}`} className="text-accent hover:underline">
@@ -129,6 +211,45 @@ export default function BookingDetailPage() {
           )}
         </dl>
 
+        {rescheduleOpen && (
+          <div className="mt-5 rounded-xl border border-accent/40 bg-accent/5 p-4">
+            <div className="mb-3 text-sm font-semibold">Reschedule meeting</div>
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="block">
+                <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">Date</div>
+                <input
+                  type="date"
+                  value={newDate}
+                  onChange={(e) => setNewDate(e.target.value)}
+                  className="rounded-md border border-border bg-surface-elevated px-3 py-1.5 text-sm text-foreground"
+                />
+              </label>
+              <label className="block">
+                <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">Time</div>
+                <input
+                  type="time"
+                  value={newTime}
+                  onChange={(e) => setNewTime(e.target.value)}
+                  className="rounded-md border border-border bg-surface-elevated px-3 py-1.5 text-sm text-foreground"
+                />
+              </label>
+              <button
+                onClick={reschedule}
+                disabled={busy}
+                className="rounded-lg bg-accent px-4 py-1.5 text-sm font-semibold text-accent-foreground hover:opacity-90 disabled:opacity-50"
+              >
+                {busy ? "Saving…" : "Save & notify"}
+              </button>
+              <button
+                onClick={() => setRescheduleOpen(false)}
+                className="rounded-lg px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="mt-6 flex flex-wrap gap-2 border-t border-border pt-5">
           {booking.meet_link && booking.status === "confirmed" && (
             <a
@@ -139,6 +260,14 @@ export default function BookingDetailPage() {
             >
               <SafeIcon icon={VideoCameraIcon} className="h-4 w-4" /> Join Meet
             </a>
+          )}
+          {booking.status === "confirmed" && !rescheduleOpen && (
+            <button
+              onClick={() => setRescheduleOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface-elevated px-4 py-2 text-sm hover:bg-surface-hover"
+            >
+              <SafeIcon icon={ArrowPathIcon} className="h-4 w-4" /> Reschedule
+            </button>
           )}
           <a
             href={`mailto:${booking.visitor_email}?subject=Re: our quick chat`}
@@ -162,9 +291,16 @@ export default function BookingDetailPage() {
           className="mt-6 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
         >
           <SafeIcon icon={CheckCircleIcon} className="h-3.5 w-3.5" />
-          Marked notification as read
+          Notification marked as read
         </Link>
       </div>
+
+      <VisitorDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        visitorEmail={booking.visitor_email}
+        visitorName={booking.visitor_name}
+      />
     </div>
   );
 }

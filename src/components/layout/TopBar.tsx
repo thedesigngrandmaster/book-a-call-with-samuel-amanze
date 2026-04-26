@@ -80,11 +80,19 @@ export default function TopBar() {
                 </Link>
               )}
               <Link to="/account" className="flex items-center gap-2 rounded-full border border-border bg-surface py-1 pl-1 pr-3 hover:bg-surface-hover">
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent text-[11px] font-bold text-accent-foreground">
-                  {initials}
-                </span>
+                {role === "admin" ? (
+                  <img
+                    src="/me.jpg"
+                    alt="Samuel AMANZE"
+                    className="h-7 w-7 rounded-full object-cover ring-2 ring-accent/40"
+                  />
+                ) : (
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent text-[11px] font-bold text-accent-foreground">
+                    {initials}
+                  </span>
+                )}
                 <span className="hidden text-xs text-muted-foreground sm:block">
-                  {user.email}
+                  {role === "admin" ? "Samuel AMANZE" : user.email}
                 </span>
               </Link>
               <button

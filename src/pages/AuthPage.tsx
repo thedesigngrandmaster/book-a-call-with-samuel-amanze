@@ -59,7 +59,7 @@ export default function AuthPage() {
               className="input"
               required
             />
-            <button disabled={busy} className="w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50">
+            <button disabled={busy} className="w-full rounded-lg bg-accent py-2.5 text-sm font-semibold text-accent-foreground shadow-[0_8px_30px_-8px_hsl(var(--accent)/0.6)] transition hover:opacity-90 disabled:opacity-50">
               {busy ? "Sending…" : "Send magic link"}
             </button>
           </form>

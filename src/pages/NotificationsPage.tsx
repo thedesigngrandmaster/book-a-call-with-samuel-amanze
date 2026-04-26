@@ -62,7 +62,7 @@ export default function NotificationsPage() {
               }`}
             >
               <Link
-                to={n.booking_id ? "/admin" : "/admin/notifications"}
+                to={n.booking_id ? `/admin/bookings/${n.booking_id}` : "/admin/notifications"}
                 onClick={() => !n.read && markRead(n.id)}
                 className="flex-1"
               >

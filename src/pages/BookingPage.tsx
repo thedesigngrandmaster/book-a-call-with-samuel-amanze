@@ -398,7 +398,7 @@ export default function BookingPage() {
 
           {!selectedDate ? (
             <div className="rounded-lg border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
-              Select a date to see available times.
+              Select a date to see available hours.
             </div>
           ) : (
             <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
@@ -426,7 +426,7 @@ export default function BookingPage() {
       </div>
 
       <p className="mt-8 text-center text-xs text-muted-foreground">
-        Samuel AMANZE's Calendar · for friends & family
+        © 2026, Samuel AMANZE's calendar • All rights reserved
       </p>
     </div>
   );

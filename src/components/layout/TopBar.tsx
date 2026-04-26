@@ -79,7 +79,7 @@ export default function TopBar() {
                   Admin
                 </Link>
               )}
-              <Link to="/account" className="flex items-center gap-2 rounded-full border border-border bg-surface py-1 pl-1 pr-3 hover:bg-surface-hover">
+              <Link to="/samuel" className="flex items-center gap-2 rounded-full border border-border bg-surface py-1 pl-1 pr-3 hover:bg-surface-hover">
                 {role === "admin" ? (
                   <img
                     src="/me.jpg"

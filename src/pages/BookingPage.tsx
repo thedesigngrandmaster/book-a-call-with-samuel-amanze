@@ -121,7 +121,9 @@ export default function BookingPage() {
       }
 
       const ends = addMinutes(selectedSlot, duration);
-      const { data, error } = await supabase
+
+      // 1) Create the booking row first (RLS: auth.uid() = visitor_id)
+      const { data: booking, error } = await supabase
         .from("bookings")
         .insert({
           visitor_id: user.id,
@@ -131,14 +133,43 @@ export default function BookingPage() {
           ends_at: ends.toISOString(),
           duration_minutes: duration,
           notes: parsed.data.notes || null,
-          // Placeholder Meet link (real one will be generated once Google OAuth is wired)
-          meet_link: `https://meet.google.com/lookup/${Math.random().toString(36).slice(2, 11)}`,
           status: "confirmed",
         })
         .select()
         .single();
       if (error) throw error;
-      setConfirmedBooking(data as any);
+
+      // 2) Try to create a real Google Meet event on the host's calendar
+      let meetLink: string | null = null;
+      try {
+        const { data: meet } = await supabase.functions.invoke("create-meet-event", {
+          body: {
+            bookingId: booking.id,
+            summary: `${HOST_TITLE} with ${parsed.data.name}`,
+            description: parsed.data.notes || "",
+            startsAt: selectedSlot.toISOString(),
+            endsAt: ends.toISOString(),
+            visitorEmail: parsed.data.email,
+            visitorName: parsed.data.name,
+          },
+        });
+        meetLink = meet?.meetLink ?? null;
+        if (meetLink) {
+          await supabase.from("bookings").update({ meet_link: meetLink }).eq("id", booking.id);
+          (booking as any).meet_link = meetLink;
+        }
+      } catch (meetErr) {
+        console.warn("Meet creation failed", meetErr);
+      }
+
+      // 3) Send confirmation emails (visitor + admin) — fire & forget
+      supabase.functions
+        .invoke("send-booking-emails", {
+          body: { bookingId: booking.id, kind: "confirmed" },
+        })
+        .catch((e) => console.warn("Email send failed", e));
+
+      setConfirmedBooking(booking as any);
       setStep("done");
     } catch (e: any) {
       toast.error(e.message || "Could not book the meeting");
@@ -180,7 +211,7 @@ export default function BookingPage() {
         <div className="panel grid gap-0 md:grid-cols-[1fr_1.4fr]">
           <aside className="border-b border-border p-6 md:border-b-0 md:border-r">
             <div className="mb-3 flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/20 text-xs font-bold text-accent">SA</span>
+              <img src="/me.jpg" alt="Samuel AMANZE" className="h-9 w-9 rounded-full object-cover ring-2 ring-accent/40" />
               <span className="text-sm text-muted-foreground">{HOST_NAME}</span>
             </div>
             <h1 className="text-2xl font-semibold">{HOST_TITLE}</h1>
@@ -257,7 +288,7 @@ export default function BookingPage() {
         {/* Left: host card */}
         <aside className="border-b border-border p-6 md:border-b-0 md:border-r">
           <div className="mb-3 flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/20 text-xs font-bold text-accent">SA</span>
+            <img src="/me.jpg" alt="Samuel AMANZE" className="h-9 w-9 rounded-full object-cover ring-2 ring-accent/40" />
             <span className="text-sm text-muted-foreground">{HOST_NAME}</span>
           </div>
           <h1 className="text-2xl font-semibold leading-tight">{HOST_TITLE}</h1>
@@ -299,14 +330,19 @@ export default function BookingPage() {
               <button
                 onClick={() => canGoPrev() && setViewMonth(addMonths(viewMonth, -1))}
                 disabled={!canGoPrev()}
-                className="rounded-md p-1.5 hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-30"
+                className={`rounded-md p-1.5 transition ${
+                  canGoPrev()
+                    ? "text-foreground hover:bg-secondary"
+                    : "cursor-not-allowed text-muted-foreground/30"
+                }`}
                 aria-label="Previous month"
+                title={canGoPrev() ? "Previous month" : "April 2026 is the earliest available month"}
               >
                 <ChevronLeftIcon className="h-4 w-4" />
               </button>
               <button
                 onClick={() => setViewMonth(addMonths(viewMonth, 1))}
-                className="rounded-md p-1.5 hover:bg-secondary"
+                className="rounded-md p-1.5 text-foreground hover:bg-secondary"
                 aria-label="Next month"
               >
                 <ChevronRightIcon className="h-4 w-4" />

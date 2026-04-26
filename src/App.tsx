@@ -10,6 +10,7 @@ import AccountPage from "./pages/AccountPage.tsx";
 import AdminPage from "./pages/AdminPage.tsx";
 import NotificationsPage from "./pages/NotificationsPage.tsx";
 import BookingDetailPage from "./pages/BookingDetailPage.tsx";
+import HostPage from "./pages/HostPage.tsx";
 import AppShell from "./components/layout/AppShell.tsx";
 
 const queryClient = new QueryClient();
@@ -22,6 +23,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
+          <Route path="/samuel" element={<AppShell><HostPage /></AppShell>} />
           <Route path="/auth" element={<AppShell><AuthPage /></AppShell>} />
           <Route path="/account" element={<AppShell><AccountPage /></AppShell>} />
           <Route path="/admin" element={<AppShell><AdminPage /></AppShell>} />

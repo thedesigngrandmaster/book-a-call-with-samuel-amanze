@@ -67,6 +67,7 @@ export default function BookingPage() {
   const [formNotes, setFormNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [magicSent, setMagicSent] = useState(false);
+  const [tz, setTz] = useState<string>(BROWSER_TZ);
   const [confirmedBooking, setConfirmedBooking] = useState<{
     id: string;
     starts_at: string;
@@ -75,6 +76,14 @@ export default function BookingPage() {
     visitor_name: string;
     visitor_email: string;
   } | null>(null);
+
+  // Format a Date in the visitor's chosen timezone
+  function tzFormat(d: Date, opts: Intl.DateTimeFormatOptions) {
+    return new Intl.DateTimeFormat("en-US", { timeZone: tz, ...opts }).format(d);
+  }
+  function fmtTime(d: Date) {
+    return tzFormat(d, { hour: "numeric", minute: "2-digit", hour12 });
+  }
 
   // Load taken slots for the visible month
   useEffect(() => {

@@ -9,6 +9,7 @@ export interface AuthState {
   user: User | null;
   role: AppRole | null;
   loading: boolean;
+  roleLoading: boolean;
 }
 
 export function useAuth(): AuthState & {

@@ -360,19 +360,27 @@ export default function BookingPage() {
               {format(viewMonth, "MMMM")} <span className="text-muted-foreground">{format(viewMonth, "yyyy")}</span>
             </h2>
             <div className="flex items-center gap-1">
-              <button
-                onClick={() => canGoPrev() && setViewMonth(addMonths(viewMonth, -1))}
-                disabled={!canGoPrev()}
-                className={`rounded-md p-1.5 transition ${
-                  canGoPrev()
-                    ? "text-foreground hover:bg-secondary"
-                    : "cursor-not-allowed text-muted-foreground/30"
-                }`}
-                aria-label="Previous month"
-                title={canGoPrev() ? "Previous month" : "April 2026 is the earliest available month"}
+              <span
+                onClick={() => {
+                  if (!canGoPrev()) {
+                    toast.info("Scheduling starts in April 2026 — earlier months aren't available.");
+                  }
+                }}
               >
-                <ChevronLeftIcon className="h-4 w-4" />
-              </button>
+                <button
+                  onClick={() => canGoPrev() && setViewMonth(addMonths(viewMonth, -1))}
+                  disabled={!canGoPrev()}
+                  className={`rounded-md p-1.5 transition ${
+                    canGoPrev()
+                      ? "text-foreground hover:bg-secondary"
+                      : "cursor-not-allowed text-muted-foreground/30"
+                  }`}
+                  aria-label="Previous month"
+                  title={canGoPrev() ? "Previous month" : "Scheduling starts in April 2026"}
+                >
+                  <ChevronLeftIcon className="h-4 w-4" />
+                </button>
+              </span>
               <button
                 onClick={() => setViewMonth(addMonths(viewMonth, 1))}
                 className="rounded-md p-1.5 text-foreground hover:bg-secondary"

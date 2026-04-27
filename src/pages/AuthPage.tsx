@@ -6,13 +6,13 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 export default function AuthPage() {
-  const { user, loading, signInWithMagicLink } = useAuth();
+  const { user, role, loading, roleLoading, signInWithMagicLink } = useAuth();
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  if (loading) return null;
-  if (user) return <Navigate to="/" replace />;
+  if (loading || (user && roleLoading)) return null;
+  if (user) return <Navigate to={role === "admin" ? "/admin" : "/"} replace />;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();

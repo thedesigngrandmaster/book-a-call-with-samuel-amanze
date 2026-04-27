@@ -17,7 +17,21 @@ import { Link } from "react-router-dom";
 const HOST_NAME = "Samuel AMANZE";
 const HOST_TITLE = "Quick chat";
 const HOST_KIND = "Video Chat";
-const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+const BROWSER_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+// Common timezones for the selector — visitor can switch to view local times.
+const TZ_OPTIONS = Array.from(new Set([
+  BROWSER_TZ,
+  "Africa/Lagos",
+  "Europe/London",
+  "Europe/Paris",
+  "America/New_York",
+  "America/Los_Angeles",
+  "Asia/Dubai",
+  "Asia/Kolkata",
+  "Asia/Singapore",
+  "Australia/Sydney",
+  "UTC",
+]));
 
 // Earliest selectable month per user request
 const MIN_MONTH = startOfMonth(new Date(2026, 3, 1)); // April 2026
@@ -53,6 +67,7 @@ export default function BookingPage() {
   const [formNotes, setFormNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [magicSent, setMagicSent] = useState(false);
+  const [tz, setTz] = useState<string>(BROWSER_TZ);
   const [confirmedBooking, setConfirmedBooking] = useState<{
     id: string;
     starts_at: string;
@@ -61,6 +76,14 @@ export default function BookingPage() {
     visitor_name: string;
     visitor_email: string;
   } | null>(null);
+
+  // Format a Date in the visitor's chosen timezone
+  function tzFormat(d: Date, opts: Intl.DateTimeFormatOptions) {
+    return new Intl.DateTimeFormat("en-US", { timeZone: tz, ...opts }).format(d);
+  }
+  function fmtTime(d: Date) {
+    return tzFormat(d, { hour: "numeric", minute: "2-digit", hour12 });
+  }
 
   // Load taken slots for the visible month
   useEffect(() => {
@@ -235,7 +258,7 @@ export default function BookingPage() {
                 <VideoCameraIcon className="h-4 w-4 text-accent" /> Google Meet
               </li>
               <li className="flex items-center gap-2 text-muted-foreground">
-                <GlobeAltIcon className="h-4 w-4" /> {TZ}
+                <GlobeAltIcon className="h-4 w-4" /> {tz}
               </li>
             </ul>
           </aside>
@@ -315,7 +338,17 @@ export default function BookingPage() {
               <VideoCameraIcon className="h-4 w-4 text-accent" /> Google Meet
             </div>
             <div className="flex items-center gap-2 text-muted-foreground">
-              <GlobeAltIcon className="h-4 w-4" /> {TZ}
+              <GlobeAltIcon className="h-4 w-4" />
+              <select
+                value={tz}
+                onChange={(e) => setTz(e.target.value)}
+                className="cursor-pointer rounded-md border border-border bg-surface-elevated px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
+                aria-label="Timezone"
+              >
+                {TZ_OPTIONS.map((z) => (
+                  <option key={z} value={z}>{z}</option>
+                ))}
+              </select>
             </div>
           </div>
         </aside>
@@ -327,19 +360,27 @@ export default function BookingPage() {
               {format(viewMonth, "MMMM")} <span className="text-muted-foreground">{format(viewMonth, "yyyy")}</span>
             </h2>
             <div className="flex items-center gap-1">
-              <button
-                onClick={() => canGoPrev() && setViewMonth(addMonths(viewMonth, -1))}
-                disabled={!canGoPrev()}
-                className={`rounded-md p-1.5 transition ${
-                  canGoPrev()
-                    ? "text-foreground hover:bg-secondary"
-                    : "cursor-not-allowed text-muted-foreground/30"
-                }`}
-                aria-label="Previous month"
-                title={canGoPrev() ? "Previous month" : "April 2026 is the earliest available month"}
+              <span
+                onClick={() => {
+                  if (!canGoPrev()) {
+                    toast.info("Scheduling starts in April 2026 — earlier months aren't available.");
+                  }
+                }}
               >
-                <ChevronLeftIcon className="h-4 w-4" />
-              </button>
+                <button
+                  onClick={() => canGoPrev() && setViewMonth(addMonths(viewMonth, -1))}
+                  disabled={!canGoPrev()}
+                  className={`rounded-md p-1.5 transition ${
+                    canGoPrev()
+                      ? "text-foreground hover:bg-secondary"
+                      : "cursor-not-allowed text-muted-foreground/30"
+                  }`}
+                  aria-label="Previous month"
+                  title={canGoPrev() ? "Previous month" : "Scheduling starts in April 2026"}
+                >
+                  <ChevronLeftIcon className="h-4 w-4" />
+                </button>
+              </span>
               <button
                 onClick={() => setViewMonth(addMonths(viewMonth, 1))}
                 className="rounded-md p-1.5 text-foreground hover:bg-secondary"
@@ -397,8 +438,13 @@ export default function BookingPage() {
           </div>
 
           {!selectedDate ? (
-            <div className="rounded-lg border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
-              Select a date to see available hours.
+            <div className="space-y-2">
+              <div className="rounded-lg border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+                Select a date to see available hours.
+              </div>
+              <p className="px-1 text-[11px] leading-relaxed text-muted-foreground">
+                After picking a time, you'll add your name &amp; email — we'll send you a Google Meet link and a calendar invite right away.
+              </p>
             </div>
           ) : (
             <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
@@ -416,7 +462,7 @@ export default function BookingPage() {
                     }}
                     className={`slot-btn ${disabled ? "cursor-not-allowed opacity-30 line-through" : ""}`}
                   >
-                    {format(s, hour12 ? "h:mma" : "HH:mm").toLowerCase()}
+                    {fmtTime(s).toLowerCase().replace(" ", "")}
                   </button>
                 );
               })}
@@ -493,7 +539,7 @@ function ConfirmationView({
 
         <dl className="mt-6 space-y-4 border-t border-border pt-6 text-sm">
           <Row term="What" desc={`${HOST_TITLE} between ${HOST_NAME} and ${b.visitor_name}`} />
-          <Row term="When" desc={`${format(start, "EEEE, MMMM d, yyyy")}\n${format(start, "h:mm a")} – ${format(end, "h:mm a")} (${TZ})`} />
+          <Row term="When" desc={`${format(start, "EEEE, MMMM d, yyyy")}\n${format(start, "h:mm a")} – ${format(end, "h:mm a")} (${BROWSER_TZ})`} />
           <Row
             term="Who"
             desc={

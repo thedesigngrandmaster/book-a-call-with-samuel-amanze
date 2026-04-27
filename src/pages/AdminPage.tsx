@@ -9,7 +9,7 @@ import { toast } from "sonner";
 type StatusFilter = "all" | "confirmed" | "cancelled";
 
 export default function AdminPage() {
-  const { user, role, loading } = useAuth();
+  const { user, role, loading, roleLoading } = useAuth();
   const [bookings, setBookings] = useState<any[]>([]);
   const [recipients, setRecipients] = useState<any[]>([]);
   const [newEmail, setNewEmail] = useState("");

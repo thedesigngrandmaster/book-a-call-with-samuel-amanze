@@ -41,7 +41,7 @@ export default function HostPage() {
       </Link>
 
       <p className="mt-8 text-center text-xs text-muted-foreground">
-        Samuel AMANZE's Calendar · for friends &amp; family
+        © 2026, Samuel AMANZE's calendar • All rights reserved
       </p>
     </div>
   );

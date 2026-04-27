@@ -17,7 +17,21 @@ import { Link } from "react-router-dom";
 const HOST_NAME = "Samuel AMANZE";
 const HOST_TITLE = "Quick chat";
 const HOST_KIND = "Video Chat";
-const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+const BROWSER_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+// Common timezones for the selector — visitor can switch to view local times.
+const TZ_OPTIONS = Array.from(new Set([
+  BROWSER_TZ,
+  "Africa/Lagos",
+  "Europe/London",
+  "Europe/Paris",
+  "America/New_York",
+  "America/Los_Angeles",
+  "Asia/Dubai",
+  "Asia/Kolkata",
+  "Asia/Singapore",
+  "Australia/Sydney",
+  "UTC",
+]));
 
 // Earliest selectable month per user request
 const MIN_MONTH = startOfMonth(new Date(2026, 3, 1)); // April 2026

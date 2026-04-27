@@ -82,6 +82,7 @@ export function useAuth(): AuthState & {
     user: session?.user ?? null,
     role,
     loading,
+    roleLoading,
     signOut,
     signInWithMagicLink,
   };

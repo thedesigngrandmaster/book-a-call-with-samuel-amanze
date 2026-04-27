@@ -258,7 +258,7 @@ export default function BookingPage() {
                 <VideoCameraIcon className="h-4 w-4 text-accent" /> Google Meet
               </li>
               <li className="flex items-center gap-2 text-muted-foreground">
-                <GlobeAltIcon className="h-4 w-4" /> {TZ}
+                <GlobeAltIcon className="h-4 w-4" /> {tz}
               </li>
             </ul>
           </aside>
@@ -338,7 +338,17 @@ export default function BookingPage() {
               <VideoCameraIcon className="h-4 w-4 text-accent" /> Google Meet
             </div>
             <div className="flex items-center gap-2 text-muted-foreground">
-              <GlobeAltIcon className="h-4 w-4" /> {TZ}
+              <GlobeAltIcon className="h-4 w-4" />
+              <select
+                value={tz}
+                onChange={(e) => setTz(e.target.value)}
+                className="cursor-pointer rounded-md border border-border bg-surface-elevated px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-accent"
+                aria-label="Timezone"
+              >
+                {TZ_OPTIONS.map((z) => (
+                  <option key={z} value={z}>{z}</option>
+                ))}
+              </select>
             </div>
           </div>
         </aside>
@@ -516,7 +526,7 @@ function ConfirmationView({
 
         <dl className="mt-6 space-y-4 border-t border-border pt-6 text-sm">
           <Row term="What" desc={`${HOST_TITLE} between ${HOST_NAME} and ${b.visitor_name}`} />
-          <Row term="When" desc={`${format(start, "EEEE, MMMM d, yyyy")}\n${format(start, "h:mm a")} – ${format(end, "h:mm a")} (${TZ})`} />
+          <Row term="When" desc={`${format(start, "EEEE, MMMM d, yyyy")}\n${format(start, "h:mm a")} – ${format(end, "h:mm a")} (${BROWSER_TZ})`} />
           <Row
             term="Who"
             desc={

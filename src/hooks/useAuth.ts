@@ -9,6 +9,7 @@ export interface AuthState {
   user: User | null;
   role: AppRole | null;
   loading: boolean;
+  roleLoading: boolean;
 }
 
 export function useAuth(): AuthState & {
@@ -18,21 +19,28 @@ export function useAuth(): AuthState & {
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const [roleLoading, setRoleLoading] = useState(true);
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s);
       if (s?.user) {
+        setRoleLoading(true);
         // defer role fetch
         setTimeout(() => fetchRole(s.user.id), 0);
       } else {
         setRole(null);
+        setRoleLoading(false);
       }
     });
 
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
-      if (data.session?.user) fetchRole(data.session.user.id);
+      if (data.session?.user) {
+        fetchRole(data.session.user.id);
+      } else {
+        setRoleLoading(false);
+      }
       setLoading(false);
     });
 
@@ -51,6 +59,7 @@ export function useAuth(): AuthState & {
     } else {
       setRole("user");
     }
+    setRoleLoading(false);
   }
 
   async function signOut() {
@@ -73,6 +82,7 @@ export function useAuth(): AuthState & {
     user: session?.user ?? null,
     role,
     loading,
+    roleLoading,
     signOut,
     signInWithMagicLink,
   };

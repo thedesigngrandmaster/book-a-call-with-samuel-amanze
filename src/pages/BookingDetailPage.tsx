@@ -21,7 +21,7 @@ import VisitorDrawer from "@/components/VisitorDrawer";
 
 export default function BookingDetailPage() {
   const { id } = useParams();
-  const { user, role, loading } = useAuth();
+  const { user, role, loading, roleLoading } = useAuth();
   const navigate = useNavigate();
   const [booking, setBooking] = useState<any>(null);
   const [busy, setBusy] = useState(false);
@@ -55,7 +55,7 @@ export default function BookingDetailPage() {
       .then(() => {});
   }, [id, role, user]);
 
-  if (loading) return null;
+  if (loading || roleLoading) return null;
   if (!user) return <Navigate to="/auth" replace />;
   if (role !== "admin") return <Navigate to="/" replace />;
 

@@ -6,7 +6,7 @@ import { formatDistanceToNow } from "date-fns";
 import { BellIcon, CheckIcon } from "@heroicons/react/24/outline";
 
 export default function NotificationsPage() {
-  const { user, role, loading } = useAuth();
+  const { user, role, loading, roleLoading } = useAuth();
   const [items, setItems] = useState<any[]>([]);
 
   const load = async () => {
@@ -24,7 +24,7 @@ export default function NotificationsPage() {
     if (role === "admin") load();
   }, [user, role]);
 
-  if (loading) return null;
+  if (loading || roleLoading) return null;
   if (!user) return <Navigate to="/auth" replace />;
   if (role !== "admin") return <Navigate to="/" replace />;
 

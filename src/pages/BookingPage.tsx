@@ -430,8 +430,13 @@ export default function BookingPage() {
           </div>
 
           {!selectedDate ? (
-            <div className="rounded-lg border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
-              Select a date to see available hours.
+            <div className="space-y-2">
+              <div className="rounded-lg border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+                Select a date to see available hours.
+              </div>
+              <p className="px-1 text-[11px] leading-relaxed text-muted-foreground">
+                After picking a time, you'll add your name &amp; email — we'll send you a Google Meet link and a calendar invite right away.
+              </p>
             </div>
           ) : (
             <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
@@ -449,7 +454,7 @@ export default function BookingPage() {
                     }}
                     className={`slot-btn ${disabled ? "cursor-not-allowed opacity-30 line-through" : ""}`}
                   >
-                    {format(s, hour12 ? "h:mma" : "HH:mm").toLowerCase()}
+                    {fmtTime(s).toLowerCase().replace(" ", "")}
                   </button>
                 );
               })}

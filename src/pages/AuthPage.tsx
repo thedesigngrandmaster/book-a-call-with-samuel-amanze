@@ -1,3 +1,4 @@
+// src/pages/AuthPage.tsx
 import { useState } from "react";
 import { CalendarDaysIcon, EnvelopeIcon } from "@heroicons/react/24/outline";
 import { useAuth } from "@/hooks/useAuth";
@@ -11,8 +12,17 @@ export default function AuthPage() {
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  if (loading || (user && roleLoading)) return null;
-  if (user) return <Navigate to={role === "admin" ? "/admin" : "/"} replace />;
+  if (loading || (user && roleLoading)) {
+    return (
+      <div className="mx-auto max-w-md px-4 py-20 text-center text-sm text-muted-foreground">
+        Signing you in…
+      </div>
+    );
+  }
+
+  if (user) {
+    return <Navigate to={role === "admin" ? "/admin" : "/"} replace />;
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -22,7 +32,8 @@ export default function AuthPage() {
       return;
     }
     setBusy(true);
-    const { error } = await signInWithMagicLink(parsed.data);
+    
+    const { error } = await signInWithMagicLink(parsed.data, undefined, "/auth");
     setBusy(false);
     if (error) {
       toast.error(error);
@@ -45,12 +56,15 @@ export default function AuthPage() {
             <h1 className="mt-3 text-lg font-semibold">Check your inbox</h1>
             <p className="mt-2 text-sm text-muted-foreground">
               We emailed a magic sign-in link to <span className="text-foreground">{email}</span>.
+              Click it and you&apos;ll be brought straight back here.
             </p>
           </div>
         ) : (
           <form onSubmit={submit} className="space-y-3">
             <h1 className="text-lg font-semibold">Sign in</h1>
-            <p className="text-sm text-muted-foreground">No password needed. We email you a one-click sign-in link.</p>
+            <p className="text-sm text-muted-foreground">
+              No password needed. We email you a one-click sign-in link.
+            </p>
             <input
               type="email"
               value={email}
@@ -58,8 +72,12 @@ export default function AuthPage() {
               placeholder="you@example.com"
               className="input"
               required
+              autoComplete="email"
             />
-            <button disabled={busy} className="w-full rounded-lg bg-accent py-2.5 text-sm font-semibold text-accent-foreground shadow-[0_8px_30px_-8px_hsl(var(--accent)/0.6)] transition hover:opacity-90 disabled:opacity-50">
+            <button
+              disabled={busy}
+              className="w-full rounded-lg bg-accent py-2.5 text-sm font-semibold text-accent-foreground shadow-[0_8px_30px_-8px_hsl(var(--accent)/0.6)] transition hover:opacity-90 disabled:opacity-50"
+            >
               {busy ? "Sending…" : "Send magic link"}
             </button>
           </form>

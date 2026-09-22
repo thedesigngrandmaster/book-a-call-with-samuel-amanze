@@ -1,4 +1,3 @@
-
 import { useEffect, useState, useCallback } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,7 +18,7 @@ export type PendingBooking = {
   name: string;
   email: string;
   notes?: string;
-  startsAt: string; 
+  startsAt: string;
   duration: number;
 };
 
@@ -46,6 +45,19 @@ export function clearPendingBooking() {
     sessionStorage.removeItem(PENDING_BOOKING_KEY);
   } catch {
     /* ignore */
+  }
+}
+
+function cleanAuthHashFromUrl() {
+  if (typeof window === "undefined") return;
+  const { hash, pathname, search } = window.location;
+  if (
+    hash &&
+    (hash.includes("access_token") ||
+      hash.includes("refresh_token") ||
+      hash.includes("error_description"))
+  ) {
+    window.history.replaceState(null, "", pathname + search);
   }
 }
 
@@ -83,31 +95,66 @@ export function useAuth(): AuthState & {
   }, []);
 
   useEffect(() => {
+    let mounted = true;
+
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+      if (!mounted) return;
       setSession(s);
 
       if (s?.user) {
         setRoleLoading(true);
         setTimeout(() => fetchRole(s.user.id), 0);
+        if (event === "SIGNED_IN") {
+          cleanAuthHashFromUrl();
+        }
       } else {
         setRole(null);
         setRoleLoading(false);
       }
-
-      if (event === "SIGNED_IN" && s?.user) {}
     });
 
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      if (data.session?.user) {
-        fetchRole(data.session.user.id);
-      } else {
-        setRoleLoading(false);
+    (async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) console.warn("getSession error", error);
+
+        if (!mounted) return;
+
+        if (data.session?.user) {
+          setSession(data.session);
+          await fetchRole(data.session.user.id);
+          cleanAuthHashFromUrl();
+        } else {
+          const hash = window.location.hash?.replace(/^#/, "");
+          if (hash && hash.includes("access_token")) {
+            const params = new URLSearchParams(hash);
+            const access_token = params.get("access_token");
+            const refresh_token = params.get("refresh_token");
+            if (access_token && refresh_token) {
+              const { data: setData, error: setErr } = await supabase.auth.setSession({
+                access_token,
+                refresh_token,
+              });
+              if (setErr) console.warn("setSession from hash failed", setErr);
+              if (setData.session?.user) {
+                setSession(setData.session);
+                await fetchRole(setData.session.user.id);
+                cleanAuthHashFromUrl();
+              }
+            }
+          } else {
+            setRoleLoading(false);
+          }
+        }
+      } finally {
+        if (mounted) setLoading(false);
       }
-      setLoading(false);
-    });
+    })();
 
-    return () => sub.subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
   }, [fetchRole]);
 
   async function signOut() {
@@ -115,14 +162,15 @@ export function useAuth(): AuthState & {
     await supabase.auth.signOut();
   }
 
-
   async function signInWithMagicLink(
     email: string,
     fullName?: string,
     redirectPath: string = "/"
   ) {
     const origin = window.location.origin;
-    const emailRedirectTo = `${origin}${redirectPath.startsWith("/") ? redirectPath : `/${redirectPath}`}`;
+    const emailRedirectTo = `${origin}${
+      redirectPath.startsWith("/") ? redirectPath : `/${redirectPath}`
+    }`;
 
     const { error } = await supabase.auth.signInWithOtp({
       email,

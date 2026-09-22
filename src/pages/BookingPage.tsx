@@ -18,10 +18,11 @@ const HOST_NAME = "Samuel AMANZE";
 const HOST_TITLE = "Quick chat";
 const HOST_KIND = "Video Chat";
 const BROWSER_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
-// Common timezones for the selector — visitor can switch to view local times.
+// Prefer Lagos for a Nigeria-based host; still include the visitor's browser TZ.
+const PREFERRED_TZ = "Africa/Lagos";
 const TZ_OPTIONS = Array.from(new Set([
+  PREFERRED_TZ,
   BROWSER_TZ,
-  "Africa/Lagos",
   "Europe/London",
   "Europe/Paris",
   "America/New_York",
@@ -33,10 +34,10 @@ const TZ_OPTIONS = Array.from(new Set([
   "UTC",
 ]));
 
-// Earliest selectable month per user request
-const MIN_MONTH = startOfMonth(new Date(2026, 3, 1)); // April 2026
+// Start calendar on the current month (past days remain disabled)
+const MIN_MONTH = startOfMonth(new Date());
 
-// Working hours 9:00 → 17:00, 30-minute slots
+// Working hours 9:00 → 17:00
 const WORK_START_HOUR = 9;
 const WORK_END_HOUR = 17;
 
@@ -67,7 +68,10 @@ export default function BookingPage() {
   const [formNotes, setFormNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [magicSent, setMagicSent] = useState(false);
-  const [tz, setTz] = useState<string>(BROWSER_TZ);
+  // Default to Lagos when the browser TZ isn't already preferred; otherwise keep browser TZ.
+  const [tz, setTz] = useState<string>(
+    TZ_OPTIONS.includes(BROWSER_TZ) && BROWSER_TZ !== "UTC" ? BROWSER_TZ : PREFERRED_TZ
+  );
   const [confirmedBooking, setConfirmedBooking] = useState<{
     id: string;
     starts_at: string;
@@ -266,10 +270,27 @@ export default function BookingPage() {
           <div className="p-6">
             <div className="space-y-4">
               <Field label="Your name *">
-                <input value={formName} onChange={(e) => setFormName(e.target.value)} className="input" maxLength={80} required />
+                <input
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
+                  className="input"
+                  maxLength={80}
+                  required
+                  placeholder="e.g. Jane Doe"
+                  autoComplete="name"
+                />
               </Field>
               <Field label="Email address *">
-                <input type="email" value={formEmail} onChange={(e) => setFormEmail(e.target.value)} className="input" maxLength={160} required />
+                <input
+                  type="email"
+                  value={formEmail}
+                  onChange={(e) => setFormEmail(e.target.value)}
+                  className="input"
+                  maxLength={160}
+                  required
+                  placeholder="jane@email.com"
+                  autoComplete="email"
+                />
               </Field>
               <Field label="Additional notes">
                 <textarea
@@ -294,7 +315,7 @@ export default function BookingPage() {
                   disabled={submitting}
                   className="rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
                 >
-                  {submitting ? "Booking…" : user ? "Confirm" : "Confirm & verify email"}
+                  {submitting ? "Booking…" : user ? "Confirm booking" : "Confirm — verify via email"}
                 </button>
               </div>
             </div>
@@ -360,27 +381,19 @@ export default function BookingPage() {
               {format(viewMonth, "MMMM")} <span className="text-muted-foreground">{format(viewMonth, "yyyy")}</span>
             </h2>
             <div className="flex items-center gap-1">
-              <span
-                onClick={() => {
-                  if (!canGoPrev()) {
-                    toast.info("Scheduling starts in April 2026 — earlier months aren't available.");
-                  }
-                }}
+              <button
+                onClick={() => canGoPrev() && setViewMonth(addMonths(viewMonth, -1))}
+                disabled={!canGoPrev()}
+                className={`rounded-md p-1.5 transition ${
+                  canGoPrev()
+                    ? "text-foreground hover:bg-secondary"
+                    : "cursor-not-allowed text-muted-foreground/30"
+                }`}
+                aria-label="Previous month"
+                title={canGoPrev() ? "Previous month" : "You are already on the earliest available month"}
               >
-                <button
-                  onClick={() => canGoPrev() && setViewMonth(addMonths(viewMonth, -1))}
-                  disabled={!canGoPrev()}
-                  className={`rounded-md p-1.5 transition ${
-                    canGoPrev()
-                      ? "text-foreground hover:bg-secondary"
-                      : "cursor-not-allowed text-muted-foreground/30"
-                  }`}
-                  aria-label="Previous month"
-                  title={canGoPrev() ? "Previous month" : "Scheduling starts in April 2026"}
-                >
-                  <ChevronLeftIcon className="h-4 w-4" />
-                </button>
-              </span>
+                <ChevronLeftIcon className="h-4 w-4" />
+              </button>
               <button
                 onClick={() => setViewMonth(addMonths(viewMonth, 1))}
                 className="rounded-md p-1.5 text-foreground hover:bg-secondary"

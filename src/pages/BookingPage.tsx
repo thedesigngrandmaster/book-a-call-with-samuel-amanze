@@ -9,7 +9,12 @@ import {
   CheckCircleIcon,
 } from "@heroicons/react/24/outline";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
+import {
+  useAuth,
+  savePendingBooking,
+  loadPendingBooking,
+  clearPendingBooking,
+} from "@/hooks/useAuth";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
@@ -18,7 +23,6 @@ const HOST_NAME = "Samuel AMANZE";
 const HOST_TITLE = "Quick chat";
 const HOST_KIND = "Video Chat";
 const BROWSER_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
-// Prefer Lagos for a Nigeria-based host; still include the visitor's browser TZ.
 const PREFERRED_TZ = "Africa/Lagos";
 const TZ_OPTIONS = Array.from(new Set([
   PREFERRED_TZ,
@@ -34,10 +38,8 @@ const TZ_OPTIONS = Array.from(new Set([
   "UTC",
 ]));
 
-// Start calendar on the current month (past days remain disabled)
 const MIN_MONTH = startOfMonth(new Date());
 
-// Working hours 9:00 → 17:00
 const WORK_START_HOUR = 9;
 const WORK_END_HOUR = 17;
 
@@ -53,7 +55,7 @@ const formSchema = z.object({
 type Step = "pick" | "form" | "done";
 
 export default function BookingPage() {
-  const { user, signInWithMagicLink } = useAuth();
+  const { user, loading, signInWithMagicLink } = useAuth();
 
   const [duration, setDuration] = useState<Duration>(30);
   const [viewMonth, setViewMonth] = useState(MIN_MONTH);
@@ -68,7 +70,6 @@ export default function BookingPage() {
   const [formNotes, setFormNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [magicSent, setMagicSent] = useState(false);
-  // Default to Lagos when the browser TZ isn't already preferred; otherwise keep browser TZ.
   const [tz, setTz] = useState<string>(
     TZ_OPTIONS.includes(BROWSER_TZ) && BROWSER_TZ !== "UTC" ? BROWSER_TZ : PREFERRED_TZ
   );
@@ -81,7 +82,6 @@ export default function BookingPage() {
     visitor_email: string;
   } | null>(null);
 
-  // Format a Date in the visitor's chosen timezone
   function tzFormat(d: Date, opts: Intl.DateTimeFormatOptions) {
     return new Intl.DateTimeFormat("en-US", { timeZone: tz, ...opts }).format(d);
   }
@@ -89,7 +89,6 @@ export default function BookingPage() {
     return tzFormat(d, { hour: "numeric", minute: "2-digit", hour12 });
   }
 
-  // Load taken slots for the visible month
   useEffect(() => {
     let active = true;
     (async () => {
@@ -103,7 +102,6 @@ export default function BookingPage() {
     };
   }, [viewMonth, step]);
 
-  // Days for grid (calendar view of viewMonth)
   const days = useMemo(() => buildMonthGrid(viewMonth), [viewMonth]);
 
   const slots = useMemo(() => {
@@ -129,6 +127,139 @@ export default function BookingPage() {
     return isAfter(viewMonth, MIN_MONTH);
   }
 
+  useEffect(() => {
+    if (!user || loading) return;
+    const pending = loadPendingBooking();
+    if (!pending) return;
+
+    let cancelled = false;
+    (async () => {
+      setSubmitting(true);
+      try {
+        const starts = new Date(pending.startsAt);
+        const ends = addMinutes(starts, pending.duration);
+
+        const { data: booking, error } = await supabase
+          .from("bookings")
+          .insert({
+            visitor_id: user.id,
+            visitor_name: pending.name,
+            visitor_email: pending.email,
+            starts_at: starts.toISOString(),
+            ends_at: ends.toISOString(),
+            duration_minutes: pending.duration,
+            notes: pending.notes || null,
+            status: "confirmed",
+          })
+          .select()
+          .single();
+        if (error) throw error;
+
+        let meetLink: string | null = null;
+        try {
+          const { data: meet } = await supabase.functions.invoke("create-meet-event", {
+            body: {
+              bookingId: booking.id,
+              summary: `${HOST_TITLE} with ${pending.name}`,
+              description: pending.notes || "",
+              startsAt: starts.toISOString(),
+              endsAt: ends.toISOString(),
+              visitorEmail: pending.email,
+              visitorName: pending.name,
+            },
+          });
+          meetLink = meet?.meetLink ?? null;
+          if (meetLink) {
+            await supabase.from("bookings").update({ meet_link: meetLink }).eq("id", booking.id);
+            (booking as any).meet_link = meetLink;
+          }
+        } catch (meetErr) {
+          console.warn("Meet creation failed", meetErr);
+        }
+
+        supabase.functions
+          .invoke("send-booking-emails", {
+            body: { bookingId: booking.id, kind: "confirmed" },
+          })
+          .catch((e) => console.warn("Email send failed", e));
+
+        clearPendingBooking();
+        if (!cancelled) {
+          setConfirmedBooking(booking as any);
+          setStep("done");
+          toast.success("You're signed in — meeting confirmed!");
+        }
+      } catch (e: any) {
+        clearPendingBooking();
+        if (!cancelled) {
+          toast.error(e.message || "Could not complete your booking. Please try again.");
+          setStep("pick");
+        }
+      } finally {
+        if (!cancelled) setSubmitting(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, loading]);
+
+  async function createBookingForUser(
+    uid: string,
+    data: { name: string; email: string; notes?: string },
+    slot: Date,
+    dur: number
+  ) {
+    const ends = addMinutes(slot, dur);
+
+    const { data: booking, error } = await supabase
+      .from("bookings")
+      .insert({
+        visitor_id: uid,
+        visitor_name: data.name,
+        visitor_email: data.email,
+        starts_at: slot.toISOString(),
+        ends_at: ends.toISOString(),
+        duration_minutes: dur,
+        notes: data.notes || null,
+        status: "confirmed",
+      })
+      .select()
+      .single();
+    if (error) throw error;
+
+    let meetLink: string | null = null;
+    try {
+      const { data: meet } = await supabase.functions.invoke("create-meet-event", {
+        body: {
+          bookingId: booking.id,
+          summary: `${HOST_TITLE} with ${data.name}`,
+          description: data.notes || "",
+          startsAt: slot.toISOString(),
+          endsAt: ends.toISOString(),
+          visitorEmail: data.email,
+          visitorName: data.name,
+        },
+      });
+      meetLink = meet?.meetLink ?? null;
+      if (meetLink) {
+        await supabase.from("bookings").update({ meet_link: meetLink }).eq("id", booking.id);
+        (booking as any).meet_link = meetLink;
+      }
+    } catch (meetErr) {
+      console.warn("Meet creation failed", meetErr);
+    }
+
+    supabase.functions
+      .invoke("send-booking-emails", {
+        body: { bookingId: booking.id, kind: "confirmed" },
+      })
+      .catch((e) => console.warn("Email send failed", e));
+
+    return booking;
+  }
+
   async function handleConfirm() {
     const parsed = formSchema.safeParse({ name: formName, email: formEmail, notes: formNotes });
     if (!parsed.success) {
@@ -139,63 +270,25 @@ export default function BookingPage() {
 
     setSubmitting(true);
     try {
-      // Visitor must be authenticated to insert (RLS)
       if (!user) {
-        const { error } = await signInWithMagicLink(parsed.data.email, parsed.data.name);
-        if (error) throw new Error(error);
+        savePendingBooking({
+          name: parsed.data.name,
+          email: parsed.data.email,
+          notes: parsed.data.notes,
+          startsAt: selectedSlot.toISOString(),
+          duration,
+        });
+        const { error } = await signInWithMagicLink(parsed.data.email, parsed.data.name, "/");
+        if (error) {
+          clearPendingBooking();
+          throw new Error(error);
+        }
         setMagicSent(true);
         return;
       }
 
-      const ends = addMinutes(selectedSlot, duration);
-
-      // 1) Create the booking row first (RLS: auth.uid() = visitor_id)
-      const { data: booking, error } = await supabase
-        .from("bookings")
-        .insert({
-          visitor_id: user.id,
-          visitor_name: parsed.data.name,
-          visitor_email: parsed.data.email,
-          starts_at: selectedSlot.toISOString(),
-          ends_at: ends.toISOString(),
-          duration_minutes: duration,
-          notes: parsed.data.notes || null,
-          status: "confirmed",
-        })
-        .select()
-        .single();
-      if (error) throw error;
-
-      // 2) Try to create a real Google Meet event on the host's calendar
-      let meetLink: string | null = null;
-      try {
-        const { data: meet } = await supabase.functions.invoke("create-meet-event", {
-          body: {
-            bookingId: booking.id,
-            summary: `${HOST_TITLE} with ${parsed.data.name}`,
-            description: parsed.data.notes || "",
-            startsAt: selectedSlot.toISOString(),
-            endsAt: ends.toISOString(),
-            visitorEmail: parsed.data.email,
-            visitorName: parsed.data.name,
-          },
-        });
-        meetLink = meet?.meetLink ?? null;
-        if (meetLink) {
-          await supabase.from("bookings").update({ meet_link: meetLink }).eq("id", booking.id);
-          (booking as any).meet_link = meetLink;
-        }
-      } catch (meetErr) {
-        console.warn("Meet creation failed", meetErr);
-      }
-
-      // 3) Send confirmation emails (visitor + admin) — fire & forget
-      supabase.functions
-        .invoke("send-booking-emails", {
-          body: { bookingId: booking.id, kind: "confirmed" },
-        })
-        .catch((e) => console.warn("Email send failed", e));
-
+      const booking = await createBookingForUser(user.id, parsed.data, selectedSlot, duration);
+      clearPendingBooking();
       setConfirmedBooking(booking as any);
       setStep("done");
     } catch (e: any) {
@@ -325,7 +418,6 @@ export default function BookingPage() {
     );
   }
 
-  // STEP: pick date / time
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
       <div className="panel grid gap-0 md:grid-cols-[280px_1fr_240px]">
@@ -494,7 +586,7 @@ export default function BookingPage() {
 function buildMonthGrid(month: Date): Date[] {
   const first = startOfMonth(month);
   const start = new Date(first);
-  start.setDate(first.getDate() - first.getDay()); // back to Sunday
+  start.setDate(first.getDate() - first.getDay()); 
   return Array.from({ length: 42 }, (_, i) => {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
